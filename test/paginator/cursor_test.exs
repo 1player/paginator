@@ -15,6 +15,7 @@ defmodule Paginator.CursorTest do
 
   defimpl Paginator.Cursor.Decode, for: Tuple do
     def convert({:m1, id}), do: %MYTEST1{id: id}
+    def convert(tuple), do: tuple
   end
 
   alias Paginator.Cursor
@@ -49,12 +50,25 @@ defmodule Paginator.CursorTest do
       assert Cursor.decode(cursor) == [1]
       refute Cursor.decode(cursor) == [[1]]
     end
+
+    test "it doesn't encode unsafe terms" do
+      assert_raise ArgumentError, fn ->
+        Cursor.encode(%{1 => {:foo, [fn -> :bar end]}})
+      end
+    end
   end
 
   describe "Cursor.decode/1" do
-    test "it safely decodes user input" do
+    test "it doesn't decode unsafe terms" do
       assert_raise ArgumentError, fn ->
-        # this binary represents the atom :fubar_0a1b2c3d4e
+        %{1 => {:foo, [fn -> :bar end]}}
+        |> :erlang.term_to_binary()
+        |> Base.url_encode64()
+        |> Cursor.decode()
+      end
+
+      # this binary represents the atom :fubar_0a1b2c3d4e
+      assert_raise ArgumentError, fn ->
         <<131, 100, 0, 16, "fubar_0a1b2c3d4e">>
         |> Base.url_encode64()
         |> Cursor.decode()
